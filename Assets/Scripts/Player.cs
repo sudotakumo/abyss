@@ -35,8 +35,10 @@ public class Player : MonoBehaviour
     // クリックした位置に移動する
     private void Move()
     {
-        if (Input.GetMouseButtonDown(1))
+        if (Input.GetMouseButton(1))
         {
+            isMoving = true;
+
             Vector3 clickPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             clickPosition.z = 0; // z座標を固定
             targetPosition = clickPosition;
@@ -47,16 +49,6 @@ public class Player : MonoBehaviour
             Vector3 direction = (targetPosition - transform.position).normalized;
             transform.position += direction * speed * Time.deltaTime;
             isMoving = true;
-
-            // 向きの変更
-            if (direction.x > 0)
-            {
-                transform.localScale = new Vector3(2.5f, 2.5f, 2.5f); // 右向き
-            }
-            else if (direction.x < 0)
-            {
-                transform.localScale = new Vector3(2.5f, 2.5f, 2.5f); // 左向き
-            }
         }
         else
         {
@@ -67,12 +59,12 @@ public class Player : MonoBehaviour
     // 攻撃アクションの実装
     private void Attack()
     {
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0)|| Input.GetMouseButton(0))
         {
             isAttacking = true;
             // 攻撃ロジックをここに追加
         }
-        else
+        else if (!Input.GetMouseButton(0))
         {
             isAttacking = false;
         }
@@ -94,9 +86,7 @@ public class Player : MonoBehaviour
             animator.SetBool("isIdle", false);
         }
 
-        Vector3 direction = (targetPosition - transform.position).normalized;
-        animator.SetFloat("moveX", direction.x);
-        animator.SetFloat("moveY", direction.y);
+        var direction = (targetPosition - transform.position).normalized;
     }
     void FlipX(float horizontal)
     {
@@ -111,7 +101,7 @@ public class Player : MonoBehaviour
         {
             this.transform.localScale = new Vector3(Mathf.Abs(this.transform.localScale.x), this.transform.localScale.y, this.transform.localScale.z);
         }
-        else if (horizontal < 0)
+        else if (Input.GetMouseButtonDown(0))
         {
             this.transform.localScale = new Vector3(-1 * Mathf.Abs(this.transform.localScale.x), this.transform.localScale.y, this.transform.localScale.z);
         }
