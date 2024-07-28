@@ -6,10 +6,12 @@ public class Player : MonoBehaviour
     public GameObject skillShotQPrefab;
     public GameObject skillShotWPrefab;
     public Transform shotPoint;
-    public LineRenderer lineRenderer; // ラインレンダラーを追加
+    public LineRenderer dashLineRenderer; // ダッシュ用のラインレンダラー
+    public LineRenderer skillLineRenderer; // スキル用のラインレンダラー
 
     private Animator animator;
     private bool isMoving;
+    private bool canAttack = true;
     private bool canMove = true; // 移動可能フラグ
     private bool canUseSkill = true; // スキル使用可能フラグ
     private bool canDash = true; // ダッシュ使用可能フラグ
@@ -17,13 +19,14 @@ public class Player : MonoBehaviour
     public float speed = 7f;
     public float dashSpeed = 15f; // ダッシュのスピード
     public float dashDuration = 0.2f; // ダッシュの持続時間
+    public float attackDuration = 0.2f; // 攻撃コライダーの有効時間
+    public float attackDelay = 0.2f;//攻撃判定の発生遅延
     public float qSkillDelay = 0.5f; // Qスキルの発射遅延時間
-    public float wSkillSpeed = 3f; // Wスキルの弾のスピード
     public float dashCooldown = 2f; // ダッシュのクールタイム
+    private ProjectileBase projectileBase;
     [SerializeField] GameObject m_guideEffect;
     [SerializeField] Collider2D dashAttackCollider; // ダッシュ時の攻撃判定用コライダー
-
-    private bool isDashing = false; // ダッシュ中かどうかのフラグ
+    [SerializeField] Collider2D attackCollider; // 攻撃用のコライダー
 
     void Start()
     {
@@ -31,14 +34,22 @@ public class Player : MonoBehaviour
         isMoving = false;
         targetPosition = transform.position;
 
+        if (attackCollider != null)
+        {
+            attackCollider.enabled = false; // 最初は無効にしておく
+        }
         if (dashAttackCollider != null)
         {
             dashAttackCollider.enabled = false; // 最初は無効にしておく
         }
 
-        if (lineRenderer != null)
+        if (skillLineRenderer != null)
         {
-            lineRenderer.enabled = false; // 最初は無効にしておく
+            skillLineRenderer.enabled = false; // 最初は無効にしておく
+        }
+        if (dashLineRenderer != null)
+        {
+            dashLineRenderer.enabled = false; // 最初は無効にしておく
         }
     }
 
@@ -46,6 +57,7 @@ public class Player : MonoBehaviour
     {
         Move();
         UpdateAnimation();
+        HandleAttack();
         HandleSkills();
     }
 
@@ -105,22 +117,46 @@ public class Player : MonoBehaviour
             transform.localScale = new Vector3(-1 * Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
         }
     }
+    private void HandleAttack()
+    {
+        if(!canAttack) return; //攻撃中は何もしない
 
+        if (Input.GetMouseButton(0)) // 左クリック
+        {
+            FaceMouseDirection();
+            animator.SetTrigger("Attack"); // 攻撃アニメーションを再生
+            StartCoroutine(PerformAttack(attackCollider,attackDelay)); // 攻撃コライダーを有効にするコルーチンを開始
+            StopMoving(); // 移動を停止
+            canAttack = false;
+            canUseSkill = false;
+        }
+    }
+    private IEnumerator PerformAttack(Collider2D attackCollider,float delay)
+    {
+        if (attackCollider != null)
+        {
+            yield return new WaitForSeconds(delay);
+            attackCollider.enabled = true; // 攻撃コライダーを有効にする
+            yield return new WaitForSeconds(attackDuration); // 攻撃の持続時間待つ
+            attackCollider.enabled = false; // 攻撃コライダーを無効にする
+            //canAttack = true; // 攻撃終了後に再度攻撃可能にする
+        }
+    }
     private void HandleSkills()
     {
         if (!canUseSkill) return; // スキル使用中は何もしない
 
         if (Input.GetKeyDown(KeyCode.Q) || Input.GetKeyDown(KeyCode.W))
         {
-            if (lineRenderer != null)
+            if (skillLineRenderer != null)
             {
-                lineRenderer.enabled = true; // ラインレンダラーを有効にする
+                skillLineRenderer.enabled = true; // ラインレンダラーを有効にする
             }
         }
 
         if (Input.GetKey(KeyCode.Q))
         {
-            UpdateLineRenderer(); // ラインレンダラーを更新
+            UpdateSkillLineRenderer(); // ラインレンダラーを更新
         }
 
         if (Input.GetKeyUp(KeyCode.Q))
@@ -130,29 +166,31 @@ public class Player : MonoBehaviour
             StartCoroutine(FireSkillShotWithDelay(skillShotQPrefab, qSkillDelay, speed)); // Qスキルのスピードを渡す
             StopMoving(); // スキル使用時に移動を停止
             canUseSkill = false; // スキル使用中は再度使用できないようにする
+            canAttack = false;
 
-            if (lineRenderer != null)
+            if (skillLineRenderer != null)
             {
-                lineRenderer.enabled = false; // ラインレンダラーを無効にする
+                skillLineRenderer.enabled = false; // ラインレンダラーを無効にする
             }
         }
 
         if (Input.GetKey(KeyCode.W))
         {
-            UpdateLineRenderer(); // ラインレンダラーを更新
+            UpdateSkillLineRenderer(); // ラインレンダラーを更新
         }
 
         if (Input.GetKeyUp(KeyCode.W))
         {
             FaceMouseDirection();
             animator.SetTrigger("AttackW"); // Wスキルの攻撃アニメーションを再生
-            FireSkillShot(skillShotWPrefab, wSkillSpeed, -0.5f); // Wスキルのスピードとオフセットを渡す
+            FireSkillShot(skillShotWPrefab, -0.5f); // Wスキルのスピードとオフセットを渡す
             StopMoving(); // スキル使用時に移動を停止
             canUseSkill = false; // スキル使用中は再度使用できないようにする
+            canAttack = false;
 
-            if (lineRenderer != null)
+            if (skillLineRenderer != null)
             {
-                lineRenderer.enabled = false; // ラインレンダラーを無効にする
+                skillLineRenderer.enabled = false; // ラインレンダラーを無効にする
             }
         }
 
@@ -162,29 +200,30 @@ public class Player : MonoBehaviour
             animator.SetTrigger("AttackE"); // Eスキルの攻撃アニメーションを再生
             StartCoroutine(Dash());
             canUseSkill = false; // スキル使用中は再度使用できないようにする
+            canAttack = false;
             canDash = false;
         }
     }
 
-    private void UpdateLineRenderer()
+    private void UpdateSkillLineRenderer()
     {
-        if (lineRenderer != null)
+        if (skillLineRenderer != null)
         {
             Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mousePosition.z = 0;
 
-            lineRenderer.SetPosition(0, shotPoint.position);
-            lineRenderer.SetPosition(1, mousePosition);
+            skillLineRenderer.SetPosition(0, shotPoint.position);
+            skillLineRenderer.SetPosition(1, mousePosition);
         }
     }
 
     private IEnumerator FireSkillShotWithDelay(GameObject skillShotPrefab, float delay, float speed)
     {
         yield return new WaitForSeconds(delay);
-        FireSkillShot(skillShotPrefab, speed, 0f);
+        FireSkillShot(skillShotPrefab, 0f);
     }
 
-    private void FireSkillShot(GameObject skillShotPrefab, float speed, float offset)
+    private void FireSkillShot(GameObject skillShotPrefab, float offset)
     {
         Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         mousePosition.z = 0;
@@ -192,7 +231,7 @@ public class Player : MonoBehaviour
         Quaternion rotation = Quaternion.LookRotation(Vector3.forward, direction); // 弾の回転を設定
         Vector3 spawnPosition = shotPoint.position - direction * offset; // オフセットを適用
         GameObject skillShot = Instantiate(skillShotPrefab, spawnPosition, rotation);
-        skillShot.GetComponent<ProjectileBase>().Initialize(direction, speed);
+        skillShot.GetComponent<ProjectileBase>().Initialize(direction);
     }
 
     private void FaceMouseDirection()
@@ -213,6 +252,10 @@ public class Player : MonoBehaviour
     {
         canMove = true;
     }
+    public void EnableAttackUse()
+    {
+        canAttack = true;
+    }
 
     public void EnableSkillUse()
     {
@@ -231,10 +274,16 @@ public class Player : MonoBehaviour
         mousePosition.z = 0;
         Vector3 dashDirection = (mousePosition - transform.position).normalized;
 
+        // ラインレンダラーを有効にし、軌道を描画
+        if (dashLineRenderer != null)
+        {
+            dashLineRenderer.enabled = true;
+            dashLineRenderer.SetPosition(0, transform.position);
+            dashLineRenderer.SetPosition(1, transform.position + dashDirection * dashSpeed * dashDuration);
+        }
         // ダッシュ開始時に攻撃判定を有効化
         if (dashAttackCollider != null)
         {
-            isDashing = true; // ダッシュ中フラグを設定
             dashAttackCollider.enabled = true;
         }
 
@@ -248,7 +297,6 @@ public class Player : MonoBehaviour
         // ダッシュ終了後に攻撃判定を無効化
         if (dashAttackCollider != null)
         {
-            isDashing = false; // ダッシュ中フラグを解除
             dashAttackCollider.enabled = false;
         }
 
@@ -258,6 +306,10 @@ public class Player : MonoBehaviour
         // ダッシュのクールダウンを開始
         canUseSkill = true; // スキルの使用を再度許可する
         StartCoroutine(DashCooldown());
+        if (dashLineRenderer != null)
+        {
+            dashLineRenderer.enabled = false;
+        }
     }
 
     private IEnumerator DashCooldown()
@@ -268,10 +320,17 @@ public class Player : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (dashAttackCollider != null && dashAttackCollider.enabled && other.CompareTag("Enemy"))
+        if ((attackCollider != null && attackCollider.enabled) || (dashAttackCollider != null && dashAttackCollider.enabled))
         {
-            // 敵にダメージを与えるロジック
-            other.GetComponent<Enemy>().TakeDamage(100); // ダメージ値は必要に応じて調整
+            if (other.CompareTag("Enemy"))
+            {
+                // 敵にダメージを与えるロジック
+                Enemy enemy = other.GetComponent<Enemy>();
+                if (enemy != null)
+                {
+                    enemy.TakeDamage(100); // ダメージ値は必要に応じて調整
+                }
+            }
         }
     }
 }

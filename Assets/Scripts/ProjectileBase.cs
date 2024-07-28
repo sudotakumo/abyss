@@ -13,10 +13,9 @@ public class ProjectileBase : MonoBehaviour
         Destroy(gameObject, lifeTime);
     }
 
-    public void Initialize(Vector3 direction, float speed)
+    public void Initialize(Vector3 direction)
     {
         this.direction = direction;
-        this.speed = speed;
     }
 
     void Update()
